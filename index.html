@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GADGET GALLERY</title>
+    <style>
+        /* 色彩設計 */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f9fafc; /* 気づかないレベルの極めて微かな青白 */
+            color: #1a242f;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            letter-spacing: 0.05em;
+            overflow-x: hidden;
+        }
+
+        /* ヘッダーは廃止（タイルに統合） */
+        header {
+            display: none;
+        }
+
+        main {
+            width: 100vw;
+            /* 裁ち落としのため余白ゼロ */
+            padding: 0; 
+            margin: 0;
+        }
+
+        /* グリッドではなくFlexboxでパーセント分割し、絶対に隙間を作らない */
+        .grid {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        /* 1つのブロック（タイル） */
+        .card {
+            position: relative;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            aspect-ratio: 16 / 9; /* 絶対維持の比率 */
+            /* デフォルト（スマホ等狭い画面）は1列 */
+            width: 100%; 
+        }
+
+        /* 画面幅に応じたシームレスな列数変更（余白ゼロ） */
+        @media (min-width: 600px) {
+            .card { width: 50%; } /* 2列 */
+        }
+        @media (min-width: 1000px) {
+            .card { width: 33.3333%; } /* 3列 */
+        }
+        @media (min-width: 1400px) {
+            .card { width: 25%; } /* 4列（フルHD等で最大時） */
+        }
+
+        /* 画像コンテナ */
+        .image-container {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(26, 36, 47, 0.03); /* プレースホルダ色（少し薄く） */
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            z-index: 1;
+        }
+
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* テキスト系タイル（サイト名、UPDATEなど）のデザイン */
+        .text-tile {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #f9fafc; /* 背景と同じ「ドット抜け」の白 */
+            color: #1a242f; /* テキストは深いネイビー */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* 下寄せ */
+            padding: 8%;
+            box-sizing: border-box;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            z-index: 1;
+        }
+
+        .text-tile-title {
+            font-weight: 200;
+            font-size: clamp(1.5rem, 3vw, 3rem); /* 画面サイズに合わせて文字も伸縮 */
+            line-height: 1.1;
+            letter-spacing: 0.1em;
+            margin: 0;
+        }
+
+        .text-tile-sub {
+            font-weight: 300;
+            font-size: clamp(0.7rem, 1vw, 1rem);
+            letter-spacing: 0.2em;
+            opacity: 0.5;
+            margin-top: 10px;
+        }
+        /* インタラクション：すべてのタイルをはっきり手前にせり出す */
+        .card:hover {
+            z-index: 10;
+        }
+        
+        /* 画像もテキストも等しく拡大し、影を落とす */
+        .card:hover .image-container,
+        .card:hover .text-tile {
+            transform: scale(1.15);
+            box-shadow: 0 40px 80px rgba(26, 36, 47, 0.15); /* 白背景でも美しく落ちる柔らかい影に変更 */
+            border-radius: 4px;
+        }
+
+        /* --- 以下、モーダル（詳細画面）のスタイル --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(249, 250, 252, 0.98); /* 背景と同じ白に変更 */
+            z-index: 1000;
+            display: flex;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-container {
+            display: flex;
+            width: 100%;
+            max-width: 1600px;
+            margin: auto;
+            height: 80vh;
+            padding: 0 100px;
+            transform: translateY(30px);
+            transition: transform 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+
+        .modal-overlay.active .modal-container { transform: translateY(0); }
+
+        .modal-left {
+            flex: 0 0 70%;
+            padding-right: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-left img {
+            width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            box-shadow: 0 40px 80px rgba(26, 36, 47, 0.08);
+        }
+
+        .modal-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -40px; right: 0;
+            cursor: pointer;
+            font-size: 3rem;
+            line-height: 1;
+            font-weight: 100;
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-close:hover { opacity: 1; }
+
+        .modal-release {
+            font-size: 0.9rem;
+            letter-spacing: 0.2em;
+            opacity: 0.5;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+
+        .modal-contents-list {
+            list-style: none; padding: 0; margin: 0 0 60px 0;
+        }
+
+        .modal-contents-list li {
+            font-size: 1.2rem; font-weight: 300; margin-bottom: 15px;
+            letter-spacing: 0.05em; display: flex; align-items: center;
+        }
+
+        .modal-contents-list li::before {
+            content: ""; display: inline-block; width: 4px; height: 4px;
+            background-color: #1a242f; border-radius: 50%; margin-right: 15px; opacity: 0.5;
+        }
+
+        .modal-download-btn {
+            display: inline-block; align-self: flex-start;
+            padding: 16px 40px; background-color: #1a242f; color: #f5f8fa;
+            text-decoration: none; font-size: 0.8rem; letter-spacing: 0.2em;
+            transition: all 0.4s ease;
+        }
+
+        .modal-download-btn:hover {
+            background-color: #34495e; transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(26, 36, 47, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <main>
+        <div class="grid">
+            
+            <!-- 1番目: 作品 -->
+            <a href="#" class="card" data-release="RELEASE #001" data-contents="Clock, YouTube, Task list, Forecast, Date" data-image="https://via.placeholder.com/1600x900/ffffff/1a242f?text=RELEASE+%23001+FULL+SCREEN">
+                <div class="image-container"><img src="https://via.placeholder.com/800x450/ffffff/1a242f?text=RELEASE+%23001" alt="Release 001"></div>
+            </a>
+
+            <!-- 2番目: プレースホルダ -->
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <!-- 3番目: プレースホルダ -->
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <!-- 4番目: プレースホルダ -->
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+
+            <!-- 5番目: サイト名タイル（4列時に2行目1列目になる） -->
+            <div class="card" style="cursor: default;">
+                <div class="text-tile">
+                    <h1 class="text-tile-title">GADGET<br>GALLERY</h1>
+                </div>
+            </div>
+
+            <!-- 6〜10番目: プレースホルダ -->
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+
+            <!-- 11番目: ドット抜け（UPDATE情報）タイル -->
+            <!-- 背景色を空間と同じにし、文字だけがポツンと浮かぶように -->
+            <div class="card" style="cursor: default;">
+                <div class="text-tile">
+                    <div class="text-tile-sub">LATEST UPDATE</div>
+                    <div class="text-tile-title" style="font-size: clamp(1rem, 1.5vw, 1.5rem);">2026.04.13</div>
+                </div>
+            </div>
+
+            <!-- 12〜20番目: プレースホルダ敷き詰め（合計20タイル・5行分） -->
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            <div class="card" style="cursor: default;"><div class="image-container"></div></div>
+            
+            <!-- 今後作品を追加する際のテンプレート（※2枚目以降は loading="lazy" をつける） -->
+            <!--
+            <a href="#" class="card" data-release="RELEASE #002" data-contents="機能A, 機能B" data-image="大画像のURL">
+                <div class="image-container"><img src="小画像のURL" alt="Release 002" loading="lazy"></div>
+            </a>
+            -->
+
+        </div>
+    </main>
+
+    <!-- モーダル（詳細画面） -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal-container">
+            <div class="modal-left">
+                <img id="modal-image" src="" alt="Detail Image">
+            </div>
+            <div class="modal-right">
+                <div class="modal-close" id="modal-close">×</div>
+                <div class="modal-release" id="modal-release">RELEASE #000</div>
+                <ul class="modal-contents-list" id="modal-contents"></ul>
+                <a href="#" class="modal-download-btn">DOWNLOAD PACKAGE</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 制御用JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('modal');
+            const modalClose = document.getElementById('modal-close');
+            const cards = document.querySelectorAll('.card[data-release]');
+
+            cards.forEach(card => {
+                card.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.getElementById('modal-release').textContent = card.dataset.release;
+                    document.getElementById('modal-image').src = card.dataset.image;
+                    
+                    const contentsArray = card.dataset.contents.split(',');
+                    const ul = document.getElementById('modal-contents');
+                    ul.innerHTML = ''; 
+                    
+                    contentsArray.forEach(item => {
+                        const li = document.createElement('li');
+                        li.textContent = item.trim();
+                        ul.appendChild(li);
+                    });
+                    
+                    modal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                });
+            });
+
+            const closeModal = () => {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+
+            modalClose.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal || e.target.classList.contains('modal-container')) {
+                    closeModal();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
